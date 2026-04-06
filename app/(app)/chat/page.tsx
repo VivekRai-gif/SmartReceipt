@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import PageHeader from '@/components/PageHeader';
-import { CHAT_HISTORY } from '@/lib/mockData';
+import { useReceiptStore } from '@/lib/store';
 import { Send, Sparkles, BarChart3, Receipt, TrendingUp } from 'lucide-react';
 
 type Message = { role: 'ai' | 'user'; content: string };
@@ -13,17 +13,15 @@ const QUICK_PROMPTS = [
   { label: 'Any alerts?', icon: <Sparkles size={13} /> },
 ];
 
-const AI_RESPONSES: Record<string, string> = {
-  'Top spending category?': '🍔 Food & Dining is your top category this month at ₹2,840 (38% of total spend). Swiggy and Starbucks are the key contributors.',
-  'Receipts this week?': '📋 You have 8 receipts scanned this week totaling ₹6,800. 2 receipts were flagged for review.',
-  'Spending trend?': '📈 Your spending peaked in March at ₹9,500. April is tracking lower at ₹7,600, which is a 21% reduction. Great progress!',
-  'Any alerts?': '⚠️ Yes — 2 active alerts: 1 duplicate receipt (Swiggy, ₹438) and 1 unusual purchase (H&M, ₹2,199 — 340% above your shopping average).',
-};
-
 export default function ChatPage() {
-  const [messages, setMessages] = useState<Message[]>(CHAT_HISTORY);
+  const { isLoaded, getDashboardStats, transactions } = useReceiptStore();
+  const [messages, setMessages] = useState<Message[]>([
+    { role: 'ai', content: "Hello! I'm your SmartSpend AI Assistant. I have analyzed all your active receipt data. How can I help you today?" }
+  ]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+
+  if (!isLoaded) return <div style={{ padding: 40 }}>Loading...</div>;
 
   const sendMessage = async (text: string) => {
     if (!text.trim()) return;
@@ -31,7 +29,21 @@ export default function ChatPage() {
     setMessages((prev) => [...prev, { role: 'user', content: text }]);
     setIsTyping(true);
     await new Promise((r) => setTimeout(r, 1000 + Math.random() * 600));
-    const response = AI_RESPONSES[text] ?? `Based on your April 2026 data: total spend is ₹7,600 across 32 receipts. Food & Dining leads at ₹2,840. Is there something specific you'd like to explore?`;
+
+    const stats = getDashboardStats();
+
+    let response = "I don't have enough data to understand that exactly. Can you try uploading more receipts?";
+    
+    if (text.includes('spending category')) {
+       response = `You have uploaded ${stats.receiptCount} receipts. The total value is ₹${stats.totalAmount.toLocaleString()}. The highest category expenses are usually marked for review.`;
+    } else if (text.includes('week') || text.includes('Receipts')) {
+       response = `You currently have ${stats.receiptCount} receipts uploaded in the entire system.`;
+    } else if (text.includes('alert')) {
+       response = stats.flaggedCount > 0 ? `⚠️ Yes — I have flagged ${stats.flaggedCount} receipts. You should review them in the Fraud tools immediately.` : `✅ No active alerts right now! Your spending looks highly consistent with zero flags.`;
+    } else {
+       response = `I see you have spending of ₹${stats.totalAmount.toLocaleString()} across ${stats.receiptCount} transactions. Everything looks well maintained.`;
+    }
+
     setMessages((prev) => [...prev, { role: 'ai', content: response }]);
     setIsTyping(false);
   };
@@ -67,10 +79,10 @@ export default function ChatPage() {
         </div>
         <div className="chat-input-area" style={{ padding: '12px 32px 20px' }}>
           <div className="chat-input-row">
-            <input id="chat-input" className="chat-input" placeholder="Ask anything about your expenses…" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && sendMessage(input)} />
+            <input id="chat-input" className="chat-input" placeholder="Ask anything about your expenses based on your Live Uploads…" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && sendMessage(input)} />
             <button id="chat-send-btn" className="chat-send-btn" onClick={() => sendMessage(input)} disabled={isTyping} aria-label="Send message"><Send size={16} /></button>
           </div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8, textAlign: 'center' }}>Powered by OpenAI + SmartReceipt AI · Queries your personal expense data only.</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8, textAlign: 'center' }}>Powered by OpenAI + SmartReceipt AI · Queries your personal expense data stored locally.</div>
         </div>
       </div>
       <style jsx global>{`@keyframes bounce { 0%, 80%, 100% { transform: scale(0.8); opacity: 0.5; } 40% { transform: scale(1.2); opacity: 1; } }`}</style>

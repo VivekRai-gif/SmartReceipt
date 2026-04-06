@@ -1,21 +1,26 @@
 'use client';
 import PageHeader from '@/components/PageHeader';
 import TransactionList from '@/components/TransactionList';
-import { MOCK_TRANSACTIONS } from '@/lib/mockData';
+import { useReceiptStore } from '@/lib/store';
 import { useState } from 'react';
 import { Filter, ArrowUpDown } from 'lucide-react';
 
 const CATEGORIES = ['All', 'Food', 'Travel', 'Shopping', 'Software', 'Health', 'Utilities'];
 
 export default function AnalysisPage() {
+  const { transactions, isLoaded, getDashboardStats } = useReceiptStore();
   const [activeCategory, setActiveCategory] = useState('All');
   const [showFlagged, setShowFlagged] = useState(false);
 
-  const filtered = MOCK_TRANSACTIONS.filter((tx) => {
+  const filtered = transactions.filter((tx) => {
     const catMatch = activeCategory === 'All' || tx.category === activeCategory.toLowerCase();
     const flagMatch = !showFlagged || tx.flagged;
     return catMatch && flagMatch;
   });
+
+  const stats = getDashboardStats();
+
+  if (!isLoaded) return <div style={{ padding: 40 }}>Loading data...</div>;
 
   return (
     <>
@@ -36,9 +41,9 @@ export default function AnalysisPage() {
         </div>
         <div className="stat-cards-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', marginBottom: 20 }}>
           {[
-            { label: 'Total Receipts', value: MOCK_TRANSACTIONS.length, valueStr: '' },
-            { label: 'Total Amount', value: 0, valueStr: `₹${MOCK_TRANSACTIONS.reduce((s, t) => s + t.amount, 0).toLocaleString('en-IN')}` },
-            { label: 'Flagged', value: MOCK_TRANSACTIONS.filter((t) => t.flagged).length, valueStr: '' },
+            { label: 'Total Receipts', value: stats.receiptCount, valueStr: '' },
+            { label: 'Total Amount', value: 0, valueStr: `₹${stats.totalAmount.toLocaleString('en-IN')}` },
+            { label: 'Flagged', value: stats.flaggedCount, valueStr: '' },
           ].map((s) => (
             <div key={s.label} className="stat-card">
               <div className="stat-label">{s.label}</div>
@@ -56,19 +61,22 @@ export default function AnalysisPage() {
           <div className="card">
             <div className="card-header"><div className="card-title">Extracted Data — Sample</div></div>
             <div className="card-body">
-              {[
-                { label: 'Merchant', value: 'Swiggy — Dinner' },
-                { label: 'Amount', value: '₹438.00' },
-                { label: 'Date', value: 'April 3, 2026' },
-                { label: 'Category', value: 'Food & Dining' },
-                { label: 'Payment Method', value: 'UPI / GPay' },
-                { label: 'AI Confidence', value: '97.4%' },
-              ].map(({ label, value }) => (
-                <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--border-light)' }}>
-                  <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{label}</span>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{value}</span>
-                </div>
-              ))}
+              {transactions.length > 0 ? (
+                [
+                  { label: 'Merchant', value: transactions[0].merchant },
+                  { label: 'Amount', value: `₹${transactions[0].amount.toLocaleString()}` },
+                  { label: 'Date', value: transactions[0].date },
+                  { label: 'Category', value: transactions[0].category },
+                  { label: 'AI Confidence', value: '97.4%' },
+                ].map(({ label, value }) => (
+                  <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--border-light)' }}>
+                    <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{label}</span>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', textTransform: 'capitalize' }}>{value}</span>
+                  </div>
+                ))
+              ) : (
+                <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>No data to sample.</div>
+              )}
             </div>
           </div>
           <div className="card">
@@ -79,7 +87,7 @@ export default function AnalysisPage() {
                 { step: 'Data Cleaning', status: 'done', time: '0.3s' },
                 { step: 'Field Extraction', status: 'done', time: '2.1s' },
                 { step: 'Categorization', status: 'done', time: '1.4s' },
-                { step: 'Fraud Detection', status: 'flagged', time: '0.8s' },
+                { step: 'Fraud Detection', status: transactions.some(t=>t.flagged) ? 'flagged' : 'done', time: '0.8s' },
                 { step: 'Insight Generation', status: 'done', time: '3.2s' },
                 { step: 'Storage', status: 'done', time: '0.2s' },
               ].map(({ step, status, time }) => (

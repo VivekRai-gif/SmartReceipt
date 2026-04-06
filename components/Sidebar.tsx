@@ -70,10 +70,10 @@ export default function Sidebar() {
 
       <div className="sidebar-bottom">
         <div className="sidebar-user">
-          <div className="sidebar-avatar">SA</div>
+          <div className="sidebar-avatar" style={{ background: 'var(--color-primary)', color: '#000' }}>VR</div>
           <div>
-            <div className="sidebar-user-name">Sarah Anderson</div>
-            <div className="sidebar-user-role">Finance Manager</div>
+            <div className="sidebar-user-name">Vivek Rai</div>
+            <div className="sidebar-user-role">Founder · SmartReceipt</div>
           </div>
           <LogOut size={15} color="var(--text-sidebar-muted)" style={{ marginLeft: 'auto' }} />
         </div>

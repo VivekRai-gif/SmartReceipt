@@ -1,9 +1,10 @@
 'use client';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useState, useEffect } from 'react';
 import {
   Zap, ArrowRight, ScanLine, Brain, ShieldCheck,
-  BarChart3, MessageSquare, CheckCircle2, Star, Menu, X
+  BarChart3, MessageSquare, CheckCircle2, Star, Menu, X,
+  Plane, Laptop, AlertTriangle, Check
 } from 'lucide-react';
 
 const FEATURES = [
@@ -52,6 +53,7 @@ export default function LandingPage() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [activeAgent, setActiveAgent] = useState(0);
+  const pipelineRef = React.useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const fn = () => setScrolled(window.scrollY > 24);
@@ -63,6 +65,25 @@ export default function LandingPage() {
     const t = setInterval(() => setActiveAgent((a) => (a + 1) % AGENTS.length), 1100);
     return () => clearInterval(t);
   }, []);
+
+  // Auto-scroll to active agent
+  useEffect(() => {
+    if (pipelineRef.current) {
+      const container = pipelineRef.current;
+      const activeNode = container.querySelector('.lp-node-active');
+      if (activeNode) {
+        const containerWidth = container.offsetWidth;
+        const nodeOffset = (activeNode as HTMLElement).offsetLeft;
+        const nodeWidth = (activeNode as HTMLElement).offsetWidth;
+        
+        // Center the active node in the scroll view
+        container.scrollTo({
+          left: nodeOffset - (containerWidth / 2) + (nodeWidth / 2),
+          behavior: 'smooth'
+        });
+      }
+    }
+  }, [activeAgent]);
 
   return (
     <div className="lp-root">
@@ -154,21 +175,30 @@ export default function LandingPage() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
                 <div className="lp-fake-card">
                   <div style={{ fontSize: 9, color: '#6B7280', marginBottom: 3 }}>Total Month</div>
-                  <div style={{ fontSize: 17, fontWeight: 800, color: '#111827', fontFamily: 'Outfit' }}>₹7,600</div>
+                  <div style={{ fontSize: 17, fontWeight: 800, color: '#0F172A', fontFamily: 'Outfit' }}>₹7,600</div>
                 </div>
                 <div className="lp-fake-card" style={{ background: '#FACC15' }}>
                   <div style={{ fontSize: 9, color: '#78350F', marginBottom: 3 }}>Fraud Alerts</div>
                   <div style={{ fontSize: 17, fontWeight: 800, color: '#000', fontFamily: 'Outfit' }}>2</div>
                 </div>
               </div>
-              <div className="lp-fake-card" style={{ marginBottom: 10, background: '#111827' }}>
-                <div style={{ fontSize: 9, color: '#FACC15', marginBottom: 5 }}>AI Insight</div>
-                <div style={{ fontSize: 10, color: '#94A3B8', lineHeight: 1.5 }}>Food spend up 28% — reducing dining by 2 meals keeps you on budget.</div>
+              <div className="lp-fake-card" style={{ marginBottom: 10, background: '#FFFFFF', border: '1px solid rgba(0,0,0,0.08)' }}>
+                <div style={{ fontSize: 9, color: '#EAB308', marginBottom: 5 }}>AI Insight</div>
+                <div style={{ fontSize: 10, color: '#475569', lineHeight: 1.5 }}>Food spend up 28% — reducing dining by 2 meals keeps you on budget.</div>
               </div>
-              {['☕ Starbucks · Food · ₹340','🚗 Uber Ride · Travel · ₹240','📦 AWS · Software · ₹1,400'].map((t, i) => (
+              {[
+                { icon: <Zap size={10} />, text: 'Starbucks · Food · ₹340', safe: true },
+                { icon: <Plane size={10} />, text: 'Uber Ride · Travel · ₹240', safe: false },
+                { icon: <Laptop size={10} />, text: 'AWS · Software · ₹1,400', safe: true }
+              ].map((t, i) => (
                 <div key={i} className="lp-fake-row" style={{ marginBottom: 5 }}>
-                  <span style={{ fontSize: 10, color: '#374151', flex: 1 }}>{t}</span>
-                  <span className={`lp-fake-badge ${i === 1 ? 'lp-fake-badge-warn' : 'lp-fake-badge-safe'}`}>{i === 1 ? '⚠' : '✓'}</span>
+                  <div style={{ width: 16, height: 16, borderRadius: 4, background: 'rgba(0,0,0,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginRight: 6 }}>
+                    {t.icon}
+                  </div>
+                  <span style={{ fontSize: 10, color: '#475569', flex: 1 }}>{t.text}</span>
+                  <span className={`lp-fake-badge ${!t.safe ? 'lp-fake-badge-warn' : 'lp-fake-badge-safe'}`}>
+                    {!t.safe ? <AlertTriangle size={8} /> : <Check size={8} />}
+                  </span>
                 </div>
               ))}
             </div>
@@ -217,7 +247,7 @@ export default function LandingPage() {
           <div className="lp-pipeline-header">
             <div>
               <div className="lp-eyebrow">n8n Multi-Agent Pipeline</div>
-              <h2 className="lp-section-title" style={{ color: 'white', marginBottom: 0 }}>
+              <h2 className="lp-section-title" style={{ color: '#0F172A', marginBottom: 0 }}>
                 10 agents.<br />One seamless flow.
               </h2>
             </div>
@@ -228,15 +258,24 @@ export default function LandingPage() {
           <p style={{ color: '#475569', fontSize: 15, marginBottom: 40, maxWidth: 460, lineHeight: 1.7 }}>
             Every receipt passes through a chain of specialized AI agents — from raw image to structured insight — automatically.
           </p>
-          <div className="lp-agents-grid">
-            {AGENTS.map((a, i) => (
-              <div key={a.num} className={`lp-agent-card${activeAgent === i ? ' lp-agent-active' : ''}`}>
-                <div className="lp-agent-num">{a.num}</div>
-                <div className="lp-agent-label">{a.label}</div>
-                <div className="lp-agent-sub">{a.sub}</div>
-                {activeAgent === i && <div className="lp-agent-pulse" />}
-              </div>
-            ))}
+          <div className="lp-pipeline-container animate-fade-in-up" style={{ animationDelay: '200ms' }} ref={pipelineRef}>
+            <div className="lp-pipeline-flow">
+              {AGENTS.map((a, i) => (
+                <React.Fragment key={a.num}>
+                  <div className={`lp-pipeline-node${activeAgent === i ? ' lp-node-active' : ''}`}>
+                    <div className="lp-node-circle">{a.num}</div>
+                    <div className="lp-node-content">
+                      <div className="lp-node-label">{a.label}</div>
+                      <div className="lp-node-sub">{a.sub}</div>
+                    </div>
+                    {activeAgent === i && <div className="lp-node-pulse" />}
+                  </div>
+                  {i < AGENTS.length - 1 && (
+                    <div className={`lp-pipeline-line${i < activeAgent ? ' lp-line-done' : ''}`} />
+                  )}
+                </React.Fragment>
+              ))}
+            </div>
           </div>
         </div>
       </section>

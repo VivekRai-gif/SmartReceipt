@@ -1,14 +1,30 @@
 'use client';
 import PageHeader from '@/components/PageHeader';
-import { FRAUD_FLAGS, MOCK_TRANSACTIONS } from '@/lib/mockData';
-import { ShieldAlert, ShieldCheck, Clock, ChevronRight, XCircle } from 'lucide-react';
+import { useReceiptStore } from '@/lib/store';
+import { ShieldAlert, ShieldCheck, Clock, ChevronRight, XCircle, Search, Lock, AlertTriangle } from 'lucide-react';
 import { useState } from 'react';
 
 export default function FraudPage() {
+  const { transactions, isLoaded } = useReceiptStore();
   const [resolved, setResolved] = useState<string[]>([]);
-  const activeFlags = FRAUD_FLAGS.filter((f) => !resolved.includes(f.id));
-  const total = MOCK_TRANSACTIONS.length;
-  const safe = total - MOCK_TRANSACTIONS.filter((t) => t.flagged).length;
+
+  if (!isLoaded) return <div style={{ padding: 40 }}>Loading...</div>;
+
+  const flaggedTxs = transactions.filter(t => t.flagged);
+  
+  const fraudFlags = flaggedTxs.map(t => ({
+    id: t.id,
+    type: t.status === 'Complete' ? 'Unusual Spending' : 'Unknown Pattern',
+    severity: t.amount >= 1000 ? 'high' : 'medium',
+    merchant: t.merchant,
+    amount: t.amount,
+    desc: t.flagReason || 'AI flagged this transaction due to budget deviations.',
+    dates: [t.date]
+  }));
+
+  const activeFlags = fraudFlags.filter((f) => !resolved.includes(f.id));
+  const total = transactions.length;
+  const safe = total - flaggedTxs.length;
 
   return (
     <>
@@ -16,15 +32,17 @@ export default function FraudPage() {
       <div className="page-content">
         <div className="stat-cards-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', marginBottom: 24 }}>
           {[
-            { label: 'Total Analyzed', value: total, icon: '🔍', highlight: false },
-            { label: 'Safe Receipts', value: safe, icon: '✅', highlight: false },
-            { label: 'Active Flags', value: activeFlags.length, icon: '⚠️', highlight: activeFlags.length > 0 },
-            { label: 'Resolved', value: resolved.length, icon: '🔒', highlight: false },
+            { label: 'Total Analyzed', value: total, icon: <Search size={22} color="var(--color-accent-blue)" />, highlight: false },
+            { label: 'Safe Receipts', value: safe, icon: <ShieldCheck size={22} color="var(--color-accent-emerald)" />, highlight: false },
+            { label: 'Active Flags', value: activeFlags.length, icon: <ShieldAlert size={22} color="var(--color-accent-rose)" />, highlight: activeFlags.length > 0 },
+            { label: 'Resolved', value: resolved.length, icon: <Lock size={22} color="var(--text-muted)" />, highlight: false },
           ].map((s) => (
-            <div key={s.label} className={`stat-card${s.highlight ? ' highlight' : ''}`}>
-              <div style={{ fontSize: 24, marginBottom: 8 }}>{s.icon}</div>
-              <div className="stat-label">{s.label}</div>
-              <div className="stat-value" style={{ fontSize: 28 }}>{s.value}</div>
+            <div key={s.label} className={`stat-card${s.highlight ? ' highlight' : ''}`} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div className="stat-card-icon" style={{ background: 'var(--bg-base)', marginBottom: 0 }}>{s.icon}</div>
+              <div>
+                <div className="stat-label">{s.label}</div>
+                <div className="stat-value" style={{ fontSize: 28, margin: '4px 0 0' }}>{s.value}</div>
+              </div>
             </div>
           ))}
         </div>
@@ -65,7 +83,7 @@ export default function FraudPage() {
                     <div style={{ display: 'flex', gap: 8 }}>
                       {flag.dates.map((d, i) => (
                         <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: 'var(--bg-base)', borderRadius: 'var(--radius-md)', fontSize: 12, color: 'var(--text-muted)' }}>
-                          <Clock size={12} /> Receipt {i + 1}: {d}
+                          <Clock size={12} /> Receipt Date: {d}
                         </div>
                       ))}
                     </div>
@@ -78,15 +96,21 @@ export default function FraudPage() {
         <div className="card">
           <div className="card-header"><div className="card-title">Flagged Transaction Records</div></div>
           <div className="transaction-list">
-            {MOCK_TRANSACTIONS.filter((t) => t.flagged).map((tx) => (
-              <div key={tx.id} className="transaction-row flagged">
-                <div className="tx-icon">{tx.icon}</div>
-                <div><div className="tx-name">{tx.merchant}</div><div className="tx-date">{tx.date}</div></div>
-                <span className="badge badge-flagged">⚠ {tx.status === 'duplicate' ? 'Duplicate' : 'Flagged'}</span>
-                <div className="tx-amount negative">−₹{tx.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
-                <ChevronRight size={16} color="var(--text-muted)" />
-              </div>
-            ))}
+            {flaggedTxs.length === 0 ? (
+               <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>No flagged records found.</div>
+            ) : (
+              flaggedTxs.map((tx) => (
+                <div key={tx.id} className="transaction-row flagged">
+                  <div className="tx-icon" style={{ background: 'rgba(239, 68, 68, 0.1)', color: 'var(--color-accent-rose)' }}>
+                    <AlertTriangle size={18} />
+                  </div>
+                  <div><div className="tx-name">{tx.merchant}</div><div className="tx-date">{tx.date}</div></div>
+                  <span className="badge badge-flagged">⚠ Flagged</span>
+                  <div className="tx-amount negative">−₹{tx.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+                  <ChevronRight size={16} color="var(--text-muted)" />
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>
