@@ -1,20 +1,70 @@
 'use client';
+import { useMemo, useState } from 'react';
+import dynamic from 'next/dynamic';
 import PageHeader from '@/components/PageHeader';
 import TransactionList from '@/components/TransactionList';
-import CategoryBreakdown from '@/components/CategoryBreakdown';
-import SpendingChart from '@/components/SpendingChart';
+import FlowTimeline from '@/components/FlowTimeline';
 import { useReceiptStore } from '@/lib/store';
-import { TrendingUp, TrendingDown, Receipt, ShieldAlert, ArrowRight, Brain } from 'lucide-react';
+import { TrendingUp, TrendingDown, Receipt, ShieldAlert, ArrowRight, Brain, Wallet, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+
+const SpendingChart = dynamic(() => import('@/components/SpendingChart'), { ssr: false });
+const CategoryBreakdown = dynamic(() => import('@/components/CategoryBreakdown'), { ssr: false });
 
 export default function DashboardPage() {
   const router = useRouter();
   const { transactions, isLoaded, getDashboardStats } = useReceiptStore();
-
-  if (!isLoaded) return <div style={{ padding: 40 }}>Loading...</div>;
+  const [showBudget, setShowBudget] = useState(false);
 
   const stats = getDashboardStats();
   const maxTx = transactions.length > 0 ? transactions.reduce((a, b) => a.amount > b.amount ? a : b) : null;
+
+  const budgetPlan = useMemo(() => {
+    if (transactions.length === 0) {
+      return {
+        recommendedMonthly: 0,
+        strictMonthly: 0,
+        spanDays: 0,
+        receiptCount: 0,
+        topCategory: null as null | [string, number],
+      };
+    }
+
+    const parseDate = (value: string) => {
+      const parsed = Date.parse(value);
+      return Number.isNaN(parsed) ? null : new Date(parsed);
+    };
+
+    const dated = transactions
+      .map((tx) => ({ tx, date: parseDate(tx.date) }))
+      .filter((entry) => entry.date);
+
+    const datedSorted = [...dated].sort((a, b) => (a.date as Date).getTime() - (b.date as Date).getTime());
+    const earliest = datedSorted[0]?.date as Date | undefined;
+    const latest = datedSorted[datedSorted.length - 1]?.date as Date | undefined;
+    const spanDays = earliest && latest ? Math.max(1, Math.ceil((latest.getTime() - earliest.getTime()) / 86400000) + 1) : 30;
+    const totalAmount = dated.reduce((sum, entry) => sum + entry.tx.amount, 0);
+    const avgDaily = totalAmount / spanDays;
+    const recommendedMonthly = Math.round(avgDaily * 30);
+    const strictMonthly = Math.round(recommendedMonthly * 0.9);
+
+    const byCategory = transactions.reduce((acc, tx) => {
+      acc[tx.category] = (acc[tx.category] || 0) + tx.amount;
+      return acc;
+    }, {} as Record<string, number>);
+
+    const topCategory = Object.entries(byCategory).sort((a, b) => b[1] - a[1])[0] || null;
+
+    return {
+      recommendedMonthly,
+      strictMonthly,
+      spanDays,
+      receiptCount: transactions.length,
+      topCategory,
+    };
+  }, [transactions]);
+
+  if (!isLoaded) return <div style={{ padding: 40 }}>Loading...</div>;
 
   const STATS_DATA = [
     {
@@ -67,12 +117,18 @@ export default function DashboardPage() {
   return (
     <>
       <PageHeader title="Dashboard" subtitle="Real-time Financial Overview">
+        <button className="btn btn-ghost btn-sm" id="budget-planner-btn" onClick={() => setShowBudget(true)}>
+          <Wallet size={14} /> Budget Planner
+        </button>
         <button className="btn btn-primary btn-sm" id="dash-upload-btn" onClick={() => router.push('/upload')}>
           + Upload Receipt
         </button>
       </PageHeader>
 
       <div className="page-content animate-fade-in-up">
+        <div style={{ marginBottom: 20 }}>
+          <FlowTimeline variant="compact" />
+        </div>
         {/* Stat Cards */}
         <div className="stat-cards-grid stagger-children">
           {STATS_DATA.map((s) => (
@@ -145,6 +201,51 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {showBudget && (
+        <div className="modal-overlay" role="dialog" aria-modal="true">
+          <div className="modal-card">
+            <div className="modal-header">
+              <div>
+                <div className="modal-title">Budget Planning</div>
+                <div className="modal-subtitle">Suggested targets based on your past records</div>
+              </div>
+              <button className="modal-close" onClick={() => setShowBudget(false)} aria-label="Close budget planner">
+                <X size={16} />
+              </button>
+            </div>
+
+            {budgetPlan.recommendedMonthly === 0 ? (
+              <div className="modal-empty">
+                Upload a few receipts to generate a budget plan.
+              </div>
+            ) : (
+              <div className="modal-body">
+                <div className="budget-hero">
+                  <div className="budget-label">Recommended monthly budget</div>
+                  <div className="budget-value">₹{budgetPlan.recommendedMonthly.toLocaleString('en-IN')}</div>
+                  <div className="budget-strict">Strict budget: ₹{budgetPlan.strictMonthly.toLocaleString('en-IN')}</div>
+                </div>
+                <div className="budget-metrics">
+                  <div>
+                    <div className="budget-metric-label">Based on</div>
+                    <div className="budget-metric-value">{budgetPlan.receiptCount} receipts · {budgetPlan.spanDays} days</div>
+                  </div>
+                  <div>
+                    <div className="budget-metric-label">Top category</div>
+                    <div className="budget-metric-value">
+                      {budgetPlan.topCategory ? `${budgetPlan.topCategory[0]} · ₹${budgetPlan.topCategory[1].toLocaleString('en-IN')}` : 'N/A'}
+                    </div>
+                  </div>
+                </div>
+                <div className="budget-note">
+                  Tip: Keep your strict budget for essential spend, and use the recommended budget for total monthly planning.
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </>
   );
 }

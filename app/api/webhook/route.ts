@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-const WEBHOOK_URL = 'https://shubhjhack.app.n8n.cloud/webhook/41e79a9c-14aa-4e3d-8582-f673cf132eb9';
+const WEBHOOK_URL = 'https://shubhjhack.app.n8n.cloud/webhook/Expense-tracker';
 
 export async function POST(req: Request) {
   try {
@@ -11,18 +11,45 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Missing file upload.' }, { status: 400 });
     }
 
-    const forwardForm = new FormData();
-    forwardForm.append('file', file, file.name);
+    const sendToWebhook = async (fieldName: string) => {
+      const forwardForm = new FormData();
+      forwardForm.append(fieldName, file, file.name);
+      forwardForm.append('filename', file.name);
+      forwardForm.append('contentType', file.type || 'application/octet-stream');
 
-    const response = await fetch(WEBHOOK_URL, {
-      method: 'POST',
-      body: forwardForm,
-    });
+      const response = await fetch(WEBHOOK_URL, {
+        method: 'POST',
+        body: forwardForm,
+      });
 
-    const text = await response.text();
+      const text = await response.text();
+      return { response, text };
+    };
+
+    const primary = await sendToWebhook('file');
+    const response = primary.response;
+    let text = primary.text;
 
     if (!response.ok) {
-      return NextResponse.json({ error: text || 'Webhook request failed.' }, { status: response.status });
+      const fallback = await sendToWebhook('data');
+      if (fallback.response.ok) {
+        return new NextResponse(fallback.text, {
+          status: 200,
+          headers: { 'Content-Type': fallback.response.headers.get('content-type') || 'application/json' },
+        });
+      }
+      text = fallback.text || text;
+    }
+
+    if (!response.ok) {
+      return NextResponse.json(
+        {
+          error: text || 'Webhook request failed.',
+          status: response.status,
+          statusText: response.statusText || 'Error',
+        },
+        { status: response.status }
+      );
     }
 
     return new NextResponse(text, {

@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import PageHeader from '@/components/PageHeader';
+import FlowTimeline from '@/components/FlowTimeline';
 import { useReceiptStore, Transaction } from '@/lib/store';
 import { Send, Sparkles, BarChart3, Receipt, TrendingUp } from 'lucide-react';
 
@@ -153,6 +154,9 @@ export default function ChatPage() {
     <>
       <PageHeader title="AI Assistant" subtitle="Natural language queries on your expenses" />
       <div className="page-content" style={{ padding: 0, display: 'flex', flexDirection: 'column', height: 'calc(100vh - 64px)' }}>
+        <div style={{ padding: '20px 32px 0' }}>
+          <FlowTimeline />
+        </div>
         <div className="chat-messages" style={{ padding: '20px 32px' }}>
           {messages.map((msg, i) => (
             <div key={i} className={`chat-bubble-wrap${msg.role === 'user' ? ' user' : ''} animate-fade-in`}>
