@@ -98,7 +98,7 @@ export default function UploadPage() {
       const form = new FormData();
       form.append('file', uploadedFile, uploadedFile.name);
 
-      const webhookResponse = await fetch('/api/webhook', {
+      const webhookResponse = await fetch('https://shubhjhack.app.n8n.cloud/webhook/Expense-tracker', {
         method: 'POST',
         body: form,
       });

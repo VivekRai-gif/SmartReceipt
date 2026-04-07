@@ -11,7 +11,10 @@ const CATEGORY_MAP: Record<string, { icon: any, color: string, bg: string }> = {
   travel: { icon: Plane, color: '#6366F1', bg: 'rgba(99,102,241,0.1)' },
   shopping: { icon: ShoppingBag, color: '#8B5CF6', bg: 'rgba(139,92,246,0.1)' },
   utilities: { icon: Zap, color: '#10B981', bg: 'rgba(16,185,129,0.1)' },
+  bills: { icon: Zap, color: '#10B981', bg: 'rgba(16,185,129,0.1)' },
+  grocery: { icon: Utensils, color: '#22C55E', bg: 'rgba(34,197,94,0.1)' },
   health: { icon: HeartPulse, color: '#F43F5E', bg: 'rgba(244,63,94,0.1)' },
+  hospital: { icon: HeartPulse, color: '#F43F5E', bg: 'rgba(244,63,94,0.1)' },
   software: { icon: Laptop, color: '#3B82F6', bg: 'rgba(59,130,246,0.1)' },
   other: { icon: Receipt, color: '#64748B', bg: 'rgba(100,116,139,0.1)' },
 };

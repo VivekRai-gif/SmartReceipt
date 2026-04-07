@@ -13,6 +13,22 @@ export type Transaction = {
   location?: string;
 };
 
+const normalizeCategory = (value: string) => {
+  const normalized = value.trim().toLowerCase();
+  const map: Record<string, string> = {
+    bill: 'utilities',
+    bills: 'utilities',
+    utility: 'utilities',
+    utilities: 'utilities',
+    hospital: 'health',
+    healthcare: 'health',
+    medical: 'health',
+    pharmacy: 'health',
+    groceries: 'grocery',
+  };
+  return map[normalized] || normalized || 'other';
+};
+
 // Initial realistic data reflecting daily bills, groceries, hospital, shopping
 const INITIAL_DATA: Transaction[] = [
   { id: 'tx-1', merchant: 'Apollo Pharmacy', amount: 1450, date: 'April 5, 2026', category: 'hospital', status: 'Complete', flagged: false, location: 'Mumbai, India' },
@@ -33,9 +49,12 @@ export function useReceiptStore() {
   useEffect(() => {
     const stored = localStorage.getItem('smartreceipt_data_v2');
     if (stored) {
-      setTransactions(JSON.parse(stored));
+      const parsed = JSON.parse(stored) as Transaction[];
+      const normalized = parsed.map((tx) => ({ ...tx, category: normalizeCategory(tx.category) }));
+      setTransactions(normalized);
     } else {
-      setTransactions(INITIAL_DATA);
+      const normalized = INITIAL_DATA.map((tx) => ({ ...tx, category: normalizeCategory(tx.category) }));
+      setTransactions(normalized);
     }
     setIsLoaded(true);
   }, []);
@@ -50,7 +69,7 @@ export function useReceiptStore() {
 
   // Save to local storage on change
   const addTransaction = (t: Omit<Transaction, 'id'>) => {
-    const newTx = { ...t, id: Math.random().toString(36).substr(2, 9) };
+    const newTx = { ...t, category: normalizeCategory(t.category), id: Math.random().toString(36).substr(2, 9) };
     const updated = [newTx, ...transactions];
     setTransactions(updated);
     localStorage.setItem('smartreceipt_data_v2', JSON.stringify(updated));
