@@ -101,8 +101,8 @@ export default function LandingPage() {
             ))}
           </div>
           <div className="lp-nav-actions">
-            <button className="lp-btn-ghost" id="nav-login-btn" onClick={() => router.push('/dashboard')}>Log in</button>
-            <button className="lp-btn-primary" id="nav-start-btn" onClick={() => router.push('/dashboard')}>
+            <button className="lp-btn-ghost" id="nav-login-btn" onClick={() => router.push('/login')}>Log in</button>
+            <button className="lp-btn-primary" id="nav-start-btn" onClick={() => router.push('/login')}>
               Get Started <ArrowRight size={14} />
             </button>
           </div>
@@ -115,7 +115,7 @@ export default function LandingPage() {
             {[['#features','Features'],['#pipeline','Pipeline'],['#pricing','Pricing']].map(([h, l]) => (
               <a key={l} href={h} className="lp-mobile-link" onClick={() => setMenuOpen(false)}>{l}</a>
             ))}
-            <button className="lp-btn-primary" style={{ marginTop: 8 }} onClick={() => router.push('/dashboard')}>Get Started</button>
+            <button className="lp-btn-primary" style={{ marginTop: 8 }} onClick={() => router.push('/login')}>Get Started</button>
           </div>
         )}
       </nav>

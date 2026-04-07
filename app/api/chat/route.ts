@@ -95,10 +95,9 @@ const buildFallbackResponse = (question: string, transactions: Transaction[]) =>
 };
 
 export async function POST(req: Request) {
-    let requestBody: {messages?: IncomingMessage[]; transactions?: Transaction[]} | null = null;
     try {
-        requestBody = await req.json();
-        const {messages, transactions} = requestBody;
+        const requestBody = (await req.json()) as {messages?: IncomingMessage[]; transactions?: Transaction[]};
+        const {messages, transactions} = requestBody || {};
 
         if (!messages) {
             return NextResponse.json({error: 'Messages are required'}, {status: 400});
