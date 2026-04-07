@@ -3,7 +3,7 @@ import { useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import PageHeader from '@/components/PageHeader';
 import { Upload, FileImage, CheckCircle2, Loader2, ScanLine, Tag, Brain, Database, MessageSquare } from 'lucide-react';
-import { useReceiptStore, Transaction } from '@/lib/store';
+import { Transaction } from '@/lib/store';
 
 type StepStatus = 'pending' | 'active' | 'done';
 
@@ -17,20 +17,18 @@ const PIPELINE_STEPS = [
   { label: 'Save\nData', icon: Database },
 ];
 
-const MERCHANTS = ['Starbucks', 'Uber Trip', 'Amazon Web Services', 'Swiggy', 'MakeMyTrip', 'WeWork'];
-const CATEGORIES = ['food', 'travel', 'software', 'shopping', 'utilities', 'other'];
-
 export default function UploadPage() {
-  const { addTransaction } = useReceiptStore();
   const [isDragOver, setIsDragOver] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [processing, setProcessing] = useState(false);
   const [currentStep, setCurrentStep] = useState(-1);
   const [extractedData, setExtractedData] = useState<Transaction | null>(null);
+  const [extractedText, setExtractedText] = useState('');
+  const [summaryText, setSummaryText] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
-  const runPipeline = useCallback(async () => {
+  const runPipeline = useCallback(async (uploadedFile: File) => {
     setProcessing(true);
     setExtractedData(null);
     for (let i = 0; i < PIPELINE_STEPS.length; i++) {
@@ -38,39 +36,85 @@ export default function UploadPage() {
       await new Promise((r) => setTimeout(r, 600));
     }
     
-    // Simulate LLM extraction data
-    const fakeAmount = parseFloat((Math.random() * 2000 + 50).toFixed(2));
-    const isFlagged = Math.random() > 0.8;
-    const cat = CATEGORIES[Math.floor(Math.random() * CATEGORIES.length)];
-    const merchant = MERCHANTS[Math.floor(Math.random() * MERCHANTS.length)];
-    const IN_LOCATIONS = ['Mumbai, India', 'Delhi, India', 'Bangalore, India', 'Online', 'Pune, India', 'Gurgaon, India'];
-    const location = IN_LOCATIONS[Math.floor(Math.random() * IN_LOCATIONS.length)];
+    let txPayload: Omit<Transaction, 'id'> | null = null;
+    let webhookText = '';
 
-    const txPayload = {
-      merchant,
-      amount: fakeAmount,
-      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-      category: cat,
-      status: 'Complete' as const,
-      flagged: isFlagged,
-      flagReason: isFlagged ? 'Amount exceeds daily average category threshold.' : undefined,
-      location: location
+    try {
+      const form = new FormData();
+      form.append('file', uploadedFile, uploadedFile.name);
+
+      const webhookResponse = await fetch('/api/webhook', {
+        method: 'POST',
+        body: form,
+      });
+
+      webhookText = await webhookResponse.text();
+
+      if (webhookResponse.ok) {
+        try {
+          const webhookData = JSON.parse(webhookText);
+          if (webhookData && typeof webhookData === 'object') {
+            txPayload = {
+              merchant: String(webhookData.merchant || 'Unknown Merchant'),
+              amount: Number(webhookData.amount || 0),
+              date: String(webhookData.date || new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })),
+              category: String(webhookData.category || 'other'),
+              status: 'Complete',
+              flagged: Boolean(webhookData.flagged),
+              flagReason: webhookData.flagReason ? String(webhookData.flagReason) : undefined,
+              location: webhookData.location ? String(webhookData.location) : undefined,
+            };
+          }
+        } catch (parseError) {
+          console.error('Webhook JSON parse error:', parseError);
+        }
+      }
+    } catch (error) {
+      console.error('Webhook request failed:', error);
+    }
+
+    if (!txPayload) {
+      setProcessing(false);
+      setCurrentStep(PIPELINE_STEPS.length);
+      setExtractedText(webhookText || 'Webhook did not return structured data.');
+      setSummaryText('No structured data returned from webhook. Please check the n8n workflow response.');
+      return;
+    }
+
+    const flaggedTx = {
+      ...txPayload,
+      flagged: txPayload.flagged,
+      flagReason: txPayload.flagReason,
     };
 
-    // Store in our local "database"
-    const savedTx = addTransaction(txPayload);
+    const textBlock = [
+      `Merchant: ${flaggedTx.merchant}`,
+      `Amount: ₹${flaggedTx.amount.toLocaleString()}`,
+      `Date: ${flaggedTx.date}`,
+      `Category: ${flaggedTx.category}`,
+      `Location: ${flaggedTx.location || 'Online'}`,
+    ].join('\n');
+
+    const summary = `Captured ${flaggedTx.category} receipt from ${flaggedTx.merchant} for ₹${flaggedTx.amount.toLocaleString()}.`;
+
+    const rawText = webhookText.trim();
+    const mergedExtractedText = rawText.length > 0
+      ? `${textBlock}\n\nRaw webhook response:\n${rawText}`
+      : textBlock;
 
     setCurrentStep(PIPELINE_STEPS.length);
-    setExtractedData(savedTx);
+    setExtractedData(flaggedTx);
+    setExtractedText(mergedExtractedText);
+    setSummaryText(summary);
     setProcessing(false);
-  }, [addTransaction]);
+  }, []);
 
   const handleFiles = (files: FileList | null) => {
     if (!files || files.length === 0) return;
     const f = files[0];
     if (!f.type.startsWith('image/') && f.type !== 'application/pdf') return;
     setFile(f);
-    runPipeline();
+    runPipeline(f);
   };
 
   const onDrop = (e: React.DragEvent) => {
@@ -186,6 +230,14 @@ export default function UploadPage() {
                         <div style={{ gridColumn: 'span 2' }}>
                           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>Category</div>
                           <div style={{ fontSize: 12, fontWeight: 600, textTransform: 'capitalize', display: 'inline-block', padding: '2px 8px', background: 'rgba(0,0,0,0.06)', borderRadius: 4, color: 'var(--text-primary)' }}>{extractedData.category}</div>
+                        </div>
+                        <div style={{ gridColumn: 'span 2' }}>
+                          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>Extracted Text</div>
+                          <pre style={{ fontSize: 11, lineHeight: 1.5, whiteSpace: 'pre-wrap', margin: 0, color: 'var(--text-secondary)' }}>{extractedText}</pre>
+                        </div>
+                        <div style={{ gridColumn: 'span 2' }}>
+                          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>Summary</div>
+                          <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{summaryText}</div>
                         </div>
                       </div>
                       

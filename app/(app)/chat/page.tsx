@@ -1,10 +1,11 @@
 'use client';
 import { useState } from 'react';
 import PageHeader from '@/components/PageHeader';
-import { useReceiptStore } from '@/lib/store';
+import { useReceiptStore, Transaction } from '@/lib/store';
 import { Send, Sparkles, BarChart3, Receipt, TrendingUp } from 'lucide-react';
 
 type Message = { role: 'ai' | 'user'; content: string };
+
 
 const QUICK_PROMPTS = [
   { label: 'Top spending category?', icon: <BarChart3 size={13} /> },
@@ -13,8 +14,109 @@ const QUICK_PROMPTS = [
   { label: 'Any alerts?', icon: <Sparkles size={13} /> },
 ];
 
+const buildLocalResponse = (question: string, transactions: Transaction[]) => {
+  const normalized = question.toLowerCase();
+
+  if (!transactions || transactions.length === 0) {
+    return 'You do not have any receipts yet. Upload a receipt to get started.';
+  }
+
+  const totalAmount = transactions.reduce((sum, tx) => sum + tx.amount, 0);
+  const flagged = transactions.filter((tx) => tx.flagged);
+  const byCategory = transactions.reduce((acc, tx) => {
+    acc[tx.category] = (acc[tx.category] || 0) + tx.amount;
+    return acc;
+  }, {} as Record<string, number>);
+  const byMerchant = transactions.reduce((acc, tx) => {
+    acc[tx.merchant] = (acc[tx.merchant] || 0) + tx.amount;
+    return acc;
+  }, {} as Record<string, number>);
+
+  const topCategory = Object.entries(byCategory).sort((a, b) => b[1] - a[1])[0];
+
+  const parseDate = (value: string) => {
+    const parsed = Date.parse(value);
+    return Number.isNaN(parsed) ? null : new Date(parsed);
+  };
+
+  if (normalized.includes('category') || normalized.includes('top spending')) {
+    if (!topCategory) {
+      return 'No category data found yet.';
+    }
+    return `Top spending category is ${topCategory[0]} with ₹${topCategory[1].toLocaleString()}.`;
+  }
+
+  if (normalized.includes('alert') || normalized.includes('flag')) {
+    return flagged.length > 0
+      ? `You have ${flagged.length} flagged receipts. Review them in Fraud Detection.`
+      : 'No active alerts. All receipts look normal.';
+  }
+
+  if (normalized.includes('merchant') || normalized.includes('store') || normalized.includes('spent at')) {
+    const topMerchant = Object.entries(byMerchant).sort((a, b) => b[1] - a[1])[0];
+    if (!topMerchant) {
+      return 'No merchant data found yet.';
+    }
+    return `Top merchant is ${topMerchant[0]} with ₹${topMerchant[1].toLocaleString()}.`;
+  }
+
+  if (normalized.includes('latest') || normalized.includes('recent')) {
+    const latest = [...transactions]
+      .map((tx) => ({ tx, date: parseDate(tx.date) }))
+      .filter((entry) => entry.date)
+      .sort((a, b) => (b.date as Date).getTime() - (a.date as Date).getTime())[0];
+    if (!latest) {
+      return 'No recent receipts found.';
+    }
+    return `Latest receipt: ${latest.tx.merchant} on ${latest.tx.date} for ₹${latest.tx.amount.toLocaleString()} (${latest.tx.category}).`;
+  }
+
+  if (normalized.includes('week')) {
+    const now = new Date();
+    const weekAgo = new Date(now);
+    weekAgo.setDate(now.getDate() - 7);
+    const recent = transactions.filter((tx) => {
+      const date = parseDate(tx.date);
+      return date ? date >= weekAgo && date <= now : false;
+    });
+    const recentTotal = recent.reduce((sum, tx) => sum + tx.amount, 0);
+    return `Last 7 days: ${recent.length} receipts totaling ₹${recentTotal.toLocaleString()}.`;
+  }
+
+  if (normalized.includes('trend')) {
+    const now = new Date();
+    const weekAgo = new Date(now);
+    weekAgo.setDate(now.getDate() - 7);
+    const twoWeeksAgo = new Date(now);
+    twoWeeksAgo.setDate(now.getDate() - 14);
+
+    const lastWeek = transactions.filter((tx) => {
+      const date = parseDate(tx.date);
+      return date ? date >= weekAgo && date <= now : false;
+    });
+    const prevWeek = transactions.filter((tx) => {
+      const date = parseDate(tx.date);
+      return date ? date >= twoWeeksAgo && date < weekAgo : false;
+    });
+
+    const lastTotal = lastWeek.reduce((sum, tx) => sum + tx.amount, 0);
+    const prevTotal = prevWeek.reduce((sum, tx) => sum + tx.amount, 0);
+
+    if (prevTotal === 0) {
+      return `Current 7-day spend is ₹${lastTotal.toLocaleString()}. Not enough data for a trend yet.`;
+    }
+
+    const delta = lastTotal - prevTotal;
+    const direction = delta >= 0 ? 'up' : 'down';
+    return `Spending is ${direction} ₹${Math.abs(delta).toLocaleString()} compared to the previous week.`;
+  }
+
+  const topCategoryLabel = topCategory ? `${topCategory[0]} (₹${topCategory[1].toLocaleString()})` : 'none';
+  return `You have ${transactions.length} receipts totaling ₹${totalAmount.toLocaleString()}. Top category: ${topCategoryLabel}. Ask about categories, alerts, weekly trends, merchants, or recent receipts.`;
+};
+
 export default function ChatPage() {
-  const { isLoaded, getDashboardStats, transactions } = useReceiptStore();
+  const { isLoaded, transactions } = useReceiptStore();
   const [messages, setMessages] = useState<Message[]>([
     { role: 'ai', content: "Hello! I'm your SmartSpend AI Assistant. I have analyzed all your active receipt data. How can I help you today?" }
   ]);
@@ -27,29 +129,20 @@ export default function ChatPage() {
     if (!text.trim()) return;
 
     const newMessage: Message = { role: 'user', content: text };
-    setMessages((prev) => [...prev, newMessage]);
+    const nextMessages = [...messages, newMessage];
+    setMessages(nextMessages);
     setInput('');
     setIsTyping(true);
 
     try {
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ messages: [...messages, newMessage] }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch response from AI');
-      }
-
-      const data = await response.json();
-      const aiMessage: Message = { role: 'ai', content: data.content };
+      await new Promise((resolve) => setTimeout(resolve, 350));
+      const reply = buildLocalResponse(text, transactions);
+      const aiMessage: Message = { role: 'ai', content: reply };
       setMessages((prev) => [...prev, aiMessage]);
     } catch (error) {
       console.error('Error sending message:', error);
-      const errorMessage: Message = { role: 'ai', content: 'Sorry, something went wrong.' };
+      const messageText = error instanceof Error ? error.message : 'Sorry, something went wrong.';
+      const errorMessage: Message = { role: 'ai', content: messageText };
       setMessages((prev) => [...prev, errorMessage]);
     } finally {
       setIsTyping(false);
@@ -90,7 +183,7 @@ export default function ChatPage() {
             <input id="chat-input" className="chat-input" placeholder="Ask anything about your expenses based on your Live Uploads…" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && sendMessage(input)} />
             <button id="chat-send-btn" className="chat-send-btn" onClick={() => sendMessage(input)} disabled={isTyping} aria-label="Send message"><Send size={16} /></button>
           </div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8, textAlign: 'center' }}>Powered by OpenAI + SmartReceipt AI · Queries your personal expense data stored locally.</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8, textAlign: 'center' }}>SmartReceipt AI · Queries your personal expense data stored locally.</div>
         </div>
       </div>
       <style jsx global>{`@keyframes bounce { 0%, 80%, 100% { transform: scale(0.8); opacity: 0.5; } 40% { transform: scale(1.2); opacity: 1; } }`}</style>

@@ -40,6 +40,14 @@ export function useReceiptStore() {
     setIsLoaded(true);
   }, []);
 
+  const isDuplicateTransaction = (t: Omit<Transaction, 'id'>) => {
+    return transactions.some((tx) =>
+      tx.merchant.toLowerCase() === t.merchant.toLowerCase() &&
+      tx.amount === t.amount &&
+      tx.date === t.date
+    );
+  };
+
   // Save to local storage on change
   const addTransaction = (t: Omit<Transaction, 'id'>) => {
     const newTx = { ...t, id: Math.random().toString(36).substr(2, 9) };
@@ -81,6 +89,7 @@ export function useReceiptStore() {
     transactions,
     isLoaded,
     addTransaction,
+    isDuplicateTransaction,
     clearData,
     getDashboardStats,
     getCategoryData
