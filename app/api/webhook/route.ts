@@ -10,7 +10,6 @@ export async function POST(req: Request) {
     if (!file || !(file instanceof File)) {
       return NextResponse.json({ error: 'Missing file upload.' }, { status: 400 });
     }
-
     const sendToWebhook = async (fieldName: string) => {
       const forwardForm = new FormData();
       forwardForm.append(fieldName, file, file.name);

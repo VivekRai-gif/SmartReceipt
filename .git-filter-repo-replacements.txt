@@ -1,0 +1,4 @@
+regex:sk-[A-Za-z0-9_-]{20,}==>REMOVED
+regex:AIza[0-9A-Za-z_-]{30,}==>REMOVED
+regex:OPENAI_API_KEY="[^"]+"==>OPENAI_API_KEY=""
+regex:GEMINI_API_KEY="[^"]+"==>GEMINI_API_KEY=""
